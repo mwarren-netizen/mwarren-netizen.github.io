@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orbital Resonance — A Planetarium Story</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#020508;--bd:rgba(55,105,185,.18);--bd2:rgba(55,105,185,.07);
+  --t1:#b5cee6;--t2:#4a6278;
+  --ac:#3d8ee8;--oc:#e8974a;--gr:#46c99a;
+  --jup:#c88b3a;--sat:#d4b890;
+  --ff1:'Syne','Arial Black',sans-serif;
+  --ff2:'Atkinson Hyperlegible','Georgia',serif;
+  --ff3:'Space Mono','Courier New',monospace;
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--t1);font-family:var(--ff2);overflow:hidden}
+#wrap{display:flex;flex-direction:column;align-items:center;width:100%;height:100vh;max-width:920px;margin:0 auto;padding:13px 18px 10px}
+#hdr{width:100%;display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:9px;border-bottom:1px solid var(--bd2);margin-bottom:7px;flex-shrink:0}
+.over{font-family:var(--ff3);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--t2);margin-bottom:3px}
+.htitle{font-family:var(--ff1);font-size:14px;font-weight:700;color:#cee0f5;letter-spacing:.01em;max-width:500px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dots{display:flex;gap:7px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--t2);opacity:.35;transition:all .35s;cursor:pointer;border:none}
+.dot.on{background:var(--ac);opacity:1;box-shadow:0 0 9px var(--ac)}
+#cvwrap{width:100%;flex:1 1 0;min-height:0;position:relative}
+#cv{display:block;width:100%;height:100%}
+#info{width:100%;flex-shrink:0;padding-top:7px}
+.cpanel{display:none}.cpanel.on{display:block}
+.ch{font-family:var(--ff1);font-size:16px;font-weight:700;color:#cce0f8;margin-bottom:5px}
+.cb{font-size:13px;line-height:1.58;color:var(--t1);margin-bottom:8px}
+.cb em{color:#8ecbf0;font-style:normal;font-weight:700}
+.ctrls{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:7px}
+.btn{font-family:var(--ff3);font-size:11px;background:transparent;border:1px solid var(--bd);color:var(--t2);padding:4px 11px;border-radius:3px;cursor:pointer;transition:all .18s;white-space:nowrap}
+.btn:hover,.btn.on{border-color:var(--ac);color:var(--ac);background:rgba(61,142,232,.1)}
+.btn.on{box-shadow:0 0 10px rgba(61,142,232,.22)}
+.btno{border-color:rgba(232,151,74,.33);color:rgba(232,151,74,.6)}
+.btno:hover,.btno.on{border-color:var(--oc);color:var(--oc);background:rgba(232,151,74,.1)}
+.slg{display:flex;align-items:center;gap:7px}
+.slg label{font-family:var(--ff3);font-size:11px;color:var(--t2);white-space:nowrap}
+.slg input[type=range]{width:88px;accent-color:var(--ac)}
+.slv{font-family:var(--ff3);font-size:11px;color:var(--ac);min-width:38px}
+.slvo{color:var(--oc)}
+.stats{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}
+.st .sl{font-family:var(--ff3);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--t2)}
+.st .vl{font-family:var(--ff3);font-size:15px;font-weight:700;color:var(--ac)}
+.phlbl{font-family:var(--ff1);font-size:12px;font-weight:700;color:var(--oc);letter-spacing:.06em;margin-bottom:3px}
+.tlbar{width:100%;height:2px;background:rgba(232,151,74,.13);border-radius:1px;margin:5px 0;position:relative}
+.tlbar .fill{height:100%;background:var(--oc);border-radius:1px;position:relative}
+.tlbar .fill::after{content:'';position:absolute;right:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--oc);box-shadow:0 0 8px var(--oc)}
+.tlmarks{display:flex;justify-content:space-between;font-family:var(--ff3);font-size:9px;color:var(--t2);margin-top:1px}
+#nav{width:100%;display:flex;align-items:center;justify-content:space-between;padding-top:7px;border-top:1px solid var(--bd2);flex-shrink:0;margin-top:auto}
+.nbtn{font-family:var(--ff1);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;background:transparent;border:1px solid var(--bd);color:var(--t2);padding:6px 16px;border-radius:3px;cursor:pointer;transition:all .18s}
+.nbtn:hover:not(:disabled){border-color:var(--ac);color:var(--ac)}
+.nbtn:disabled{opacity:.22;cursor:not-allowed}
+#chnum{font-family:var(--ff3);font-size:11px;color:var(--t2)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr">
+    <div>
+      <div class="over">Orbital Mechanics</div>
+      <div class="htitle" id="chtitle">What is Orbital Resonance?</div>
+    </div>
+    <div class="dots">
+      <div class="dot on" onclick="nav(1)" title="Chapter 1"></div>
+      <div class="dot" onclick="nav(2)" title="Chapter 2"></div>
+      <div class="dot" onclick="nav(3)" title="Chapter 3"></div>
+    </div>
+  </div>
+
+  <div id="cvwrap"><canvas id="cv"></canvas></div>
+
+  <div id="info">
+
+    <div class="cpanel on" id="p1">
+      <div class="ch">What is Orbital Resonance?</div>
+      <div class="cb">When two bodies maintain a simple integer ratio of orbital periods, they're in <em>resonance</em>. Gravitational nudges repeat at the same orbital positions, locking the bodies into a geometric relationship. Select a ratio — the trail of connecting lines reveals the pattern. Resonant ratios form closed, repeating figures; irrational ratios fill space uniformly.</div>
+      <div class="ctrls" id="rbrow"></div>
+      <div class="ctrls">
+        <div class="slg"><label>Speed</label><input type="range" id="s1sp" min=".5" max="6" step=".5" value="2"><span class="slv" id="s1sv">2×</span></div>
+        <button class="btn" id="bclr" style="margin-left:auto">Clear trail</button>
+      </div>
+      <div class="stats">
+        <div class="st"><div class="sl">Ratio</div><div class="vl" id="d1r">2:1</div></div>
+        <div class="st"><div class="sl">Type</div><div class="vl" id="d1t" style="font-size:11px;padding-top:2px">RESONANT</div></div>
+        <div class="st"><div class="sl">Inner orbits</div><div class="vl" id="d1i">0</div></div>
+        <div class="st"><div class="sl">Outer orbits</div><div class="vl" id="d1o">0</div></div>
+      </div>
+    </div>
+
+    <div class="cpanel" id="p2">
+      <div class="ch">Jupiter & Saturn's 5:2 Near-Resonance</div>
+      <div class="cb">Jupiter orbits in <em>11.86 years</em>; Saturn in <em>29.46 years</em> — a ratio of ~2.48, tantalizingly close to 5:2. Every ~19.9 years they meet in <em>conjunction</em>. The near-resonance clusters these meetings near three points roughly 120° apart, creating a slow gravitational drumbeat that reverberates through the solar system.</div>
+      <div class="ctrls">
+        <div class="slg"><label>Time scale</label><input type="range" id="s2sp" min="2" max="30" step="1" value="10"><span class="slv" id="s2sv">10 yr/s</span></div>
+        <button class="btn" id="b2r">Reset</button>
+      </div>
+      <div class="stats">
+        <div class="st"><div class="sl">Simulated time</div><div class="vl" id="d2y">0.0 yr</div></div>
+        <div class="st"><div class="sl">Conjunctions</div><div class="vl" id="d2c">0</div></div>
+        <div class="st"><div class="sl">J period</div><div class="vl" style="color:var(--jup)">11.86 yr</div></div>
+        <div class="st"><div class="sl">S period</div><div class="vl" style="color:var(--sat)">29.46 yr</div></div>
+      </div>
+    </div>
+
+    <div class="cpanel" id="p3">
+      <div class="ch">The Grand Tack</div>
+      <div class="cb" id="c3b">Jupiter formed beyond the frost line and began migrating inward — threatening the inner solar system. Saturn's arrival and a 3:2 resonance lock reversed both planets' migration, preserving conditions for Earth's formation.</div>
+      <div class="phlbl" id="c3ph">● Formation</div>
+      <div class="tlbar"><div class="fill" id="tlfill" style="width:0%"></div></div>
+      <div class="tlmarks"><span>Formation</span><span>Jupiter in</span><span>Saturn locks</span><span>Tack out</span><span>Final</span></div>
+      <div class="ctrls" style="margin-top:7px">
+        <button class="btn btno" id="b3p">⏸ Pause</button>
+        <div class="slg"><label>Speed</label><input type="range" id="s3sp" min=".5" max="4" step=".5" value="1"><span class="slv slvo" id="s3sv">1×</span></div>
+        <button class="btn" id="b3r">↺ Restart</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="nav">
+    <button class="nbtn" id="bprev" disabled>← Prev</button>
+    <div id="chnum">Chapter 1 / 3</div>
+    <button class="nbtn" id="bnext">Next →</button>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+const cvwrap=$('cvwrap');
+let W,H,cx,cy,Tg=0;
+
+function resize(){
+  const rect=cvwrap.getBoundingClientRect();
+  W=rect.width;H=Math.max(rect.height,150);
+  cv.width=W;cv.height=H;cx=W/2;cy=H/2;
+}
+resize();
+window.addEventListener('resize',()=>{resize();});
+
+// ── Stars ─────────────────────────────────────────────────────────────────
+const STARS=Array.from({length:210},()=>({
+  x:Math.random(),y:Math.random(),
+  r:Math.random()*1.2+.2,
+  a:Math.random()*.5+.12,
+  ph:Math.random()*6.28,
+  sp:Math.random()*.7+.25
+}));
+
+function drawStars(){
+  for(const s of STARS){
+    const tw=1+.2*Math.sin(Tg*s.sp+s.ph);
+    ctx.globalAlpha=Math.max(.03,s.a*tw);
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(s.x*W,s.y*H,s.r,0,6.283);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+// ── Drawing helpers ───────────────────────────────────────────────────────
+function glw(x,y,r,col,blur,a=1){
+  blur=blur||18;
+  ctx.save();
+  ctx.fillStyle=col;
+  ctx.globalAlpha=a*.09;
+  ctx.beginPath();ctx.arc(x,y,r*2.8,0,6.283);ctx.fill();
+  ctx.globalAlpha=a;
+  ctx.shadowBlur=blur;ctx.shadowColor=col;
+  ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.fill();
+  ctx.shadowBlur=0;ctx.restore();
+}
+
+function orb(x,y,r,col,a,lw){
+  a=a||.25;lw=lw||1;
+  ctx.save();ctx.globalAlpha=a;ctx.strokeStyle=col;ctx.lineWidth=lw;
+  ctx.shadowBlur=5;ctx.shadowColor=col;
+  ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.stroke();
+  ctx.shadowBlur=0;ctx.restore();
+}
+
+function drawSun(x,y,r){
+  r=r||12;
+  ctx.save();
+  ctx.fillStyle='#ffe55c';
+  ctx.globalAlpha=.1;ctx.shadowBlur=30;ctx.shadowColor='#ffe55c';
+  ctx.beginPath();ctx.arc(x,y,r*4.2,0,6.283);ctx.fill();
+  ctx.globalAlpha=.3;ctx.beginPath();ctx.arc(x,y,r*2,0,6.283);ctx.fill();
+  ctx.globalAlpha=1;ctx.fillStyle='#fff5a0';
+  ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.fill();
+  ctx.shadowBlur=0;ctx.restore();
+}
+
+function lbl(x,y,text,col,sz,a){
+  sz=sz||10;a=a||.7;
+  ctx.save();ctx.globalAlpha=a;ctx.fillStyle=col;
+  ctx.font=sz+"px 'Space Mono','Courier New',monospace";
+  ctx.fillText(text,x,y);ctx.restore();
+}
+
+function blbl(x,y,text,col,sz,a){
+  sz=sz||22;a=a||.5;
+  ctx.save();ctx.globalAlpha=a;ctx.fillStyle=col;
+  ctx.font="bold "+sz+"px 'Syne','Arial Black',sans-serif";
+  ctx.textAlign='center';ctx.fillText(text,x,y);
+  ctx.textAlign='left';ctx.restore();
+}
+
+function vignette(){
+  const g=ctx.createRadialGradient(cx,cy,H*.2,cx,cy,H*.88);
+  g.addColorStop(0,'rgba(2,5,8,0)');
+  g.addColorStop(1,'rgba(2,5,8,.55)');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+}
+
+// ── CHAPTER 1 ─────────────────────────────────────────────────────────────
+const RATS=[
+  {lb:'1:1',  p:1,      q:1, type:'lock', nm:'Co-orbital'},
+  {lb:'2:1',  p:2,      q:1, type:'lock', nm:'Kirkwood gap'},
+  {lb:'3:2',  p:3,      q:2, type:'lock', nm:'Neptune-Pluto'},
+  {lb:'5:3',  p:5,      q:3, type:'lock', nm:'High-order'},
+  {lb:'5:2',  p:5,      q:2, type:'near', nm:'Jupiter-Saturn'},
+  {lb:'φ:1',  p:1.6180, q:1, type:'none', nm:'Non-resonant'},
+];
+const TCOL={lock:'#46c99a',near:'#e8a84a',none:'#e86a5a'};
+const TLBL={lock:'RESONANT',near:'NEAR-RESONANT',none:'NON-RESONANT'};
+
+let c1={ri:1,t:0,sp:2,trail:[],maxT:200,stm:0,inO:0,outO:0,pIA:0,pOA:0};
+
+const rbrow=$('rbrow');
+RATS.forEach((r,i)=>{
+  const b=document.createElement('button');
+  b.className='btn'+(i===c1.ri?' on':'');
+  b.innerHTML=r.lb+' <span style="opacity:.4;font-size:9px">'+r.nm+'</span>';
+  b.onclick=()=>{
+    c1.ri=i;c1.trail=[];c1.t=0;c1.inO=0;c1.outO=0;c1.stm=0;c1.pIA=0;c1.pOA=0;
+    rbrow.querySelectorAll('.btn').forEach((x,j)=>x.classList.toggle('on',j===i));
+    updC1();
+  };
+  rbrow.appendChild(b);
+});
+
+$('s1sp').oninput=function(){c1.sp=+this.value;$('s1sv').textContent=c1.sp+'×'};
+$('bclr').onclick=function(){c1.trail=[];c1.t=0;c1.inO=0;c1.outO=0};
+
+function updC1(){
+  const r=RATS[c1.ri];
+  $('d1r').textContent=r.lb;
+  $('d1t').textContent=TLBL[r.type];
+  $('d1t').style.color=TCOL[r.type];
+}
+updC1();
+
+function drawC1(dt){
+  const r=RATS[c1.ri];
+  const mx=Math.min(W,H);
+  const R1=mx*.185,R2=mx*.335;
+  const TOUT=5.0,TIN=TOUT*r.q/r.p;
+  const SMP=TOUT/36;
+
+  c1.t+=dt*c1.sp;
+  const ia=((6.283*c1.t/TIN)%(6.283)+6.283)%6.283;
+  const oa=((6.283*c1.t/TOUT)%(6.283)+6.283)%6.283;
+
+  if(ia<c1.pIA-3)c1.inO++;
+  if(oa<c1.pOA-3)c1.outO++;
+  c1.pIA=ia;c1.pOA=oa;
+
+  c1.stm-=dt*c1.sp;
+  if(c1.stm<=0){
+    c1.stm=SMP;
+    c1.trail.push({
+      ix:cx+R1*Math.cos(ia),iy:cy+R1*Math.sin(ia),
+      ox:cx+R2*Math.cos(oa),oy:cy+R2*Math.sin(oa)
+    });
+    if(c1.trail.length>c1.maxT)c1.trail.shift();
+  }
+
+  ctx.clearRect(0,0,W,H);
+  drawStars();
+
+  orb(cx,cy,R1,'#3d8ee8',.28);
+  orb(cx,cy,R2,'#e8974a',.28);
+
+  // Resonance web — connecting lines accumulate
+  for(let i=0;i<c1.trail.length;i++){
+    const p=c1.trail[i],f=i/c1.trail.length;
+    ctx.globalAlpha=f*.14;
+    ctx.strokeStyle='#9bbcdf';ctx.lineWidth=.7;
+    ctx.beginPath();ctx.moveTo(p.ix,p.iy);ctx.lineTo(p.ox,p.oy);ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+
+  const ix=cx+R1*Math.cos(ia),iy=cy+R1*Math.sin(ia);
+  const ox=cx+R2*Math.cos(oa),oy=cy+R2*Math.sin(oa);
+
+  // Current connection (brighter)
+  ctx.globalAlpha=.5;ctx.strokeStyle='#9bbcdf';ctx.lineWidth=1.3;
+  ctx.beginPath();ctx.moveTo(ix,iy);ctx.lineTo(ox,oy);ctx.stroke();
+  ctx.globalAlpha=1;
+
+  glw(ix,iy,7,'#3d8ee8',20);
+  glw(ox,oy,9,'#e8974a',22);
+  drawSun(cx,cy,11);
+
+  lbl(ix+12,iy+4,'inner body','#3d8ee8',10,.72);
+  lbl(ox+13,oy+4,'outer body','#e8974a',10,.72);
+
+  blbl(cx,cy+R2+34,r.lb,'#c8d8ef',26,.48);
+
+  ctx.save();ctx.globalAlpha=.45;ctx.fillStyle=TCOL[r.type];
+  ctx.font="10px 'Space Mono','Courier New',monospace";
+  ctx.textAlign='center';ctx.fillText(TLBL[r.type],cx,cy+R2+52);
+  ctx.textAlign='left';ctx.restore();
+
+  vignette();
+
+  $('d1i').textContent=c1.inO;
+  $('d1o').textContent=c1.outO;
+}
+
+// ── CHAPTER 2 ─────────────────────────────────────────────────────────────
+const TJ=11.86,TS=29.46;
+const WJ=6.283/TJ,WS=6.283/TS,WREL=WJ-WS;
+
+let c2={yr:0,sp:10,conjs:[],relA:0};
+
+$('s2sp').oninput=function(){c2.sp=+this.value;$('s2sv').textContent=c2.sp+' yr/s'};
+$('b2r').onclick=function(){c2.yr=0;c2.conjs=[];c2.relA=0};
+
+function drawC2(dt){
+  const avail=Math.min(W,H)*.46;
+  const sc=avail/(9.5+.6);
+  const rJ=5.2*sc,rS=9.5*sc;
+  const simdt=dt*c2.sp;
+
+  const prev=Math.floor(c2.relA/6.283);
+  c2.relA+=WREL*simdt;
+  c2.yr+=simdt;
+  const cur=Math.floor(c2.relA/6.283);
+
+  for(let k=prev+1;k<=cur;k++){
+    const yc=k*6.283/WREL;
+    c2.conjs.push({a:WS*yc-1.5708,y:yc});
+  }
+
+  const jA=WJ*c2.yr-1.5708,sA=WS*c2.yr-1.5708;
+
+  ctx.clearRect(0,0,W,H);
+  drawStars();
+
+  orb(cx,cy,rJ,'#c88b3a',.35,1.5);
+  orb(cx,cy,rS,'#d4b890',.28,1.5);
+
+  const rRef=rS+26;
+  ctx.save();ctx.globalAlpha=.08;ctx.strokeStyle='#46c99a';ctx.lineWidth=.5;
+  ctx.setLineDash([3,8]);ctx.beginPath();ctx.arc(cx,cy,rRef,0,6.283);ctx.stroke();
+  ctx.setLineDash([]);ctx.restore();
+
+  // Conjunction dots
+  for(const cj of c2.conjs){
+    const age=c2.yr-cj.y,a=Math.max(.1,1-age/95);
+    const px=cx+rRef*Math.cos(cj.a),py=cy+rRef*Math.sin(cj.a);
+    ctx.save();ctx.globalAlpha=a;ctx.fillStyle='#46c99a';
+    ctx.shadowBlur=10;ctx.shadowColor='#46c99a';
+    ctx.beginPath();ctx.arc(px,py,4.5,0,6.283);ctx.fill();
+    ctx.shadowBlur=0;ctx.restore();
+    // Draw small number for first 9
+    const idx=c2.conjs.indexOf(cj);
+    if(idx<9&&a>.3){
+      ctx.save();ctx.globalAlpha=a*.6;ctx.fillStyle='#46c99a';
+      ctx.font="8px 'Space Mono','Courier New',monospace";
+      ctx.textAlign='center';ctx.fillText(idx+1,px,py-8);
+      ctx.textAlign='left';ctx.restore();
+    }
+  }
+
+  // Triangle of last 3 conjunctions
+  if(c2.conjs.length>=3){
+    const l3=c2.conjs.slice(-3);
+    const pts=l3.map(function(c){return{x:cx+rRef*Math.cos(c.a),y:cy+rRef*Math.sin(c.a)}});
+    ctx.save();ctx.globalAlpha=.18;ctx.strokeStyle='#46c99a';ctx.lineWidth=1;
+    ctx.setLineDash([4,5]);ctx.beginPath();
+    ctx.moveTo(pts[0].x,pts[0].y);ctx.lineTo(pts[1].x,pts[1].y);
+    ctx.lineTo(pts[2].x,pts[2].y);ctx.closePath();ctx.stroke();
+    ctx.setLineDash([]);ctx.restore();
+  }
+
+  // Jupiter
+  const jx=cx+rJ*Math.cos(jA),jy=cy+rJ*Math.sin(jA);
+  glw(jx,jy,12,'#c88b3a',28);
+
+  // Saturn with ring
+  const sx=cx+rS*Math.cos(sA),sy=cy+rS*Math.sin(sA);
+  ctx.save();ctx.globalAlpha=.65;ctx.strokeStyle='#c0a060';ctx.lineWidth=3;
+  ctx.shadowBlur=7;ctx.shadowColor='#c0a060';
+  ctx.beginPath();ctx.ellipse(sx,sy,19,6,.3,0,6.283);ctx.stroke();
+  ctx.shadowBlur=0;ctx.restore();
+  glw(sx,sy,10,'#d4b890',22);
+
+  drawSun(cx,cy,12);
+
+  lbl(jx+15,jy+4,'Jupiter','#c88b3a',10,.75);
+  lbl(sx+14,sy+4,'Saturn','#d4b890',10,.75);
+
+  // Conjunction ring label
+  if(c2.conjs.length>0){
+    ctx.save();ctx.globalAlpha=.42;ctx.fillStyle='#46c99a';
+    ctx.font="9px 'Space Mono','Courier New',monospace";
+    ctx.textAlign='center';ctx.fillText('conjunction ring',cx,cy-rRef-12);
+    ctx.textAlign='left';ctx.restore();
+  }
+
+  // Info sidebar
+  if(W>570){
+    const ix2=cx+rS+34;
+    if(ix2+80<W-6){
+      lbl(ix2,H*.25,'Period ratio','#4a6278',9,.55);
+      blbl(ix2+38,H*.25+21,'~5:2','#c8d8ef',19,.65);
+      lbl(ix2,H*.44,'Synodic period','#4a6278',9,.55);
+      blbl(ix2+44,H*.44+19,'19.9 yr','#c8d8ef',14,.65);
+      if(c2.conjs.length>=3){
+        lbl(ix2,H*.63,'Conj. drift','#4a6278',9,.55);
+        blbl(ix2+36,H*.63+18,'~4.6°/cycle','#46c99a',11,.65);
+      }
+    }
+  }
+
+  vignette();
+
+  $('d2y').textContent=c2.yr.toFixed(1)+' yr';
+  $('d2c').textContent=c2.conjs.length;
+}
+
+// ── CHAPTER 3 ─────────────────────────────────────────────────────────────
+const PHAS=[
+  {s:0,   e:.16, lbl:'Formation',
+   txt:'Jupiter forms beyond the frost line (~3.5 AU). Saturn is taking shape farther out. The inner solar system teems with planetesimals — raw material for Earth, Mars, and Venus.'},
+  {s:.16, e:.46, lbl:'Jupiter Migrates Inward',
+   txt:'Jupiter begins drifting sunward through the protoplanetary disk. Its gravity carves a gap ahead of it, threatening to scatter the material building Earth and Mars.'},
+  {s:.46, e:.64, lbl:'Saturn Reaches 3:2 Resonance',
+   txt:'Saturn, migrating inward behind Jupiter, catches up and locks into a 3:2 mean-motion resonance. The gravitational coupling fundamentally changes both planets\' dynamics.'},
+  {s:.64, e:.88, lbl:'The Tack — Outward Migration',
+   txt:'The resonance lock reverses both planets\' migration. Like a sailboat tacking against the wind, Jupiter and Saturn now migrate outward together, releasing their grip on the inner disk.'},
+  {s:.88, e:1,   lbl:'Final Configuration',
+   txt:'Jupiter and Saturn settle near their current orbits. The inner solar system — compressed, sculpted, and released — continues forming. The conditions for Earth are intact.'},
+];
+
+let c3={ph:0,play:true,sp:1,aT:0,lpi:-1};
+
+const IPLAN=[
+  {au:.39,col:'#8a8480',r:2},
+  {au:.72,col:'#d4a860',r:3},
+  {au:1.0, col:'#4a90d9',r:3.5},
+  {au:1.52,col:'#c1440e',r:2.5},
+];
+
+function jAU(ph){
+  if(ph<.16)return 3.5;
+  if(ph<.46)return 3.5+(ph-.16)/.30*(1.5-3.5);
+  if(ph<.64)return 1.5;
+  if(ph<.88)return 1.5+(ph-.64)/.24*(5.2-1.5);
+  return 5.2;
+}
+function sAU(ph){
+  if(ph<.32)return 7.5;
+  if(ph<.55)return 7.5+(ph-.32)/.23*(2.4-7.5);
+  if(ph<.64)return 2.4;
+  if(ph<.88)return 2.4+(ph-.64)/.24*(9.5-2.4);
+  return 9.5;
+}
+
+$('b3p').onclick=function(){
+  if(c3.ph>=1){c3.ph=0;c3.aT=0;c3.play=true;c3.lpi=-1;}
+  else c3.play=!c3.play;
+  this.textContent=c3.play?'⏸ Pause':'▶ Play';
+};
+$('b3r').onclick=function(){
+  c3.ph=0;c3.aT=0;c3.play=true;c3.lpi=-1;
+  $('b3p').textContent='⏸ Pause';
+};
+$('s3sp').oninput=function(){c3.sp=+this.value;$('s3sv').textContent=c3.sp+'×'};
+
+function migArrow(X,Y,R,col,a,inward){
+  for(let i=0;i<4;i++){
+    const base=(i/4)*6.283+Tg*.22;
+    const dr=inward?-22:22,da=inward?-.1:.1;
+    const ax=X+R*Math.cos(base),ay=Y+R*Math.sin(base);
+    const tx=X+(R+dr)*Math.cos(base+da),ty=Y+(R+dr)*Math.sin(base+da);
+    ctx.save();ctx.globalAlpha=a;ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(tx,ty);ctx.stroke();
+    const ang=Math.atan2(ty-ay,tx-ax);
+    ctx.beginPath();ctx.moveTo(tx,ty);
+    ctx.lineTo(tx-7*Math.cos(ang-.42),ty-7*Math.sin(ang-.42));
+    ctx.lineTo(tx-7*Math.cos(ang+.42),ty-7*Math.sin(ang+.42));
+    ctx.closePath();ctx.fill();ctx.restore();
+  }
+}
+
+function drawC3(dt){
+  if(c3.play&&c3.ph<1)c3.ph=Math.min(1,c3.ph+dt*c3.sp*.033);
+  c3.aT+=dt;
+  const ph=c3.ph;
+
+  let pi=0;
+  for(let i=PHAS.length-1;i>=0;i--){if(ph>=PHAS[i].s){pi=i;break;}}
+  if(pi!==c3.lpi){
+    c3.lpi=pi;
+    $('c3ph').textContent='● '+PHAS[pi].lbl;
+    $('c3b').textContent=PHAS[pi].txt;
+  }
+  $('tlfill').style.width=(ph*100).toFixed(1)+'%';
+
+  const avail=Math.min(W,H)*.44;
+  const sc=avail/10.5;
+  const fR=2.7*sc;
+
+  ctx.clearRect(0,0,W,H);
+  drawStars();
+
+  // Frost line
+  ctx.save();ctx.globalAlpha=.1;ctx.strokeStyle='#7bb8d4';ctx.lineWidth=1;
+  ctx.setLineDash([5,9]);ctx.shadowBlur=4;ctx.shadowColor='#7bb8d4';
+  ctx.beginPath();ctx.arc(cx,cy,fR,0,6.283);ctx.stroke();
+  ctx.shadowBlur=0;ctx.setLineDash([]);ctx.restore();
+
+  // Asteroid belt
+  const bA=ph<.22?0.11:ph<.5?0.11-0.09*(ph-.22)/.28:ph<.75?0.02:0.02+0.07*(ph-.75)/.2;
+  if(bA>.01){
+    ctx.save();ctx.globalAlpha=bA;
+    for(let r=2.2;r<=3.2;r+=.22){
+      ctx.strokeStyle='#8b7355';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.arc(cx,cy,r*sc,0,6.283);ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Inner planet orbits
+  for(const p of IPLAN) orb(cx,cy,p.au*sc,p.col,.17,.6);
+
+  const jau=jAU(ph),sau=sAU(ph);
+
+  // Ghost orbit — Jupiter's starting position
+  if(ph>.24&&ph<.92){
+    const gA=Math.min(.13,(ph-.24)/.09*.13);
+    ctx.save();ctx.globalAlpha=gA;ctx.strokeStyle='#c88b3a';ctx.lineWidth=.5;
+    ctx.setLineDash([3,8]);ctx.beginPath();ctx.arc(cx,cy,3.5*sc,0,6.283);ctx.stroke();
+    ctx.setLineDash([]);ctx.restore();
+  }
+
+  orb(cx,cy,jau*sc,'#c88b3a',.36,1.5);
+
+  const sVis=Math.max(0,Math.min(1,(ph-.30)/.08));
+  if(sVis>0) orb(cx,cy,sau*sc,'#d4b890',.3*sVis,1.5);
+
+  // Migration arrows — Jupiter
+  if(ph>.19&&ph<.46) migArrow(cx,cy,jau*sc,'#ff6b6b',Math.min(.65,(ph-.19)/.07),true);
+  if(ph>.66&&ph<.88) migArrow(cx,cy,jau*sc,'#46c99a',Math.min(.65,(ph-.66)/.07),false);
+  // Migration arrows — Saturn
+  if(ph>.37&&ph<.55&&sVis>.5) migArrow(cx,cy,sau*sc,'#ffaa55',Math.min(.55,(ph-.37)/.07)*sVis,true);
+  if(ph>.66&&ph<.88&&sVis>.5) migArrow(cx,cy,sau*sc,'#46c99a',Math.min(.6,(ph-.66)/.07)*sVis,false);
+
+  // Resonance lock visualization
+  if(ph>.5&&ph<.67){
+    const lockA=Math.min(.55,(ph-.5)/.07)*Math.min(1,(0.67-ph)/.04);
+    const jAng=c3.aT*.9-1.5708,sAng=c3.aT*.55+Math.PI;
+    const jxL=cx+jau*sc*Math.cos(jAng),jyL=cy+jau*sc*Math.sin(jAng);
+    const sxL=cx+sau*sc*Math.cos(sAng),syL=cy+sau*sc*Math.sin(sAng);
+    ctx.save();ctx.globalAlpha=lockA;ctx.strokeStyle='#46c99a';ctx.lineWidth=1.5;
+    ctx.setLineDash([5,6]);ctx.beginPath();ctx.moveTo(jxL,jyL);ctx.lineTo(sxL,syL);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#46c99a';ctx.font="bold 11px 'Syne','Arial Black',sans-serif";
+    ctx.textAlign='center';
+    ctx.fillText('3:2 resonance lock',(jxL+sxL)/2,(jyL+syL)/2-11);
+    ctx.textAlign='left';ctx.restore();
+  }
+
+  // Animate planets
+  const jAng=c3.aT*.9-1.5708,sAng=c3.aT*.55+Math.PI;
+  const jx=cx+jau*sc*Math.cos(jAng),jy=cy+jau*sc*Math.sin(jAng);
+  const sx2=cx+sau*sc*Math.cos(sAng),sy2=cy+sau*sc*Math.sin(sAng);
+
+  // Inner planets (tiny, animated)
+  for(const p of IPLAN){
+    const ang=c3.aT*(1.4/p.au)+p.au*1.2;
+    glw(cx+p.au*sc*Math.cos(ang),cy+p.au*sc*Math.sin(ang),p.r,p.col,10);
+  }
+
+  // Jupiter
+  glw(jx,jy,12,'#c88b3a',26);
+
+  // Saturn with ring
+  if(sVis>0){
+    ctx.save();ctx.globalAlpha=.7*sVis;ctx.strokeStyle='#c0a060';ctx.lineWidth=3;
+    ctx.shadowBlur=8;ctx.shadowColor='#c0a060';
+    ctx.beginPath();ctx.ellipse(sx2,sy2,18,5.5,.3,0,6.283);ctx.stroke();
+    ctx.shadowBlur=0;ctx.restore();
+    glw(sx2,sy2,9,'#d4b890',20,sVis);
+  }
+
+  drawSun(cx,cy,12);
+
+  // Labels
+  lbl(jx+14,jy+4,'Jupiter','#c88b3a',10,.75);
+  lbl(jx+14,jy+15,jau.toFixed(1)+' AU','#9b6a2a',9,.6);
+  if(sVis>.5){
+    lbl(sx2+13,sy2+4,'Saturn','#d4b890',10,.75*sVis);
+    lbl(sx2+13,sy2+15,sau.toFixed(1)+' AU','#9b8a60',9,.6*sVis);
+  }
+
+  // Frost line label
+  lbl(cx+fR+5,cy-5,'frost line','#7bb8d4',9,.4);
+
+  // Final message
+  if(ph>.91){
+    const fa=(ph-.91)/.09;
+    ctx.save();ctx.globalAlpha=fa*.55;ctx.fillStyle='#46c99a';
+    ctx.font="bold 11px 'Syne','Arial Black',sans-serif";
+    ctx.textAlign='center';
+    ctx.fillText('inner solar system: preserved',cx,cy+avail+26);
+    ctx.textAlign='left';ctx.restore();
+  }
+
+  vignette();
+}
+
+// ── Animation loop ─────────────────────────────────────────────────────────
+let chapter=1,lastTS=null;
+
+function loop(ts){
+  if(!lastTS)lastTS=ts;
+  const dt=Math.min((ts-lastTS)/1000,.05);
+  lastTS=ts;
+  Tg+=dt;
+
+  if(chapter===1)drawC1(dt);
+  else if(chapter===2)drawC2(dt);
+  else if(chapter===3)drawC3(dt);
+
+  requestAnimationFrame(loop);
+}
+
+document.fonts.ready.then(function(){requestAnimationFrame(loop);});
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+const TITLES=[
+  'What is Orbital Resonance?',
+  "Jupiter & Saturn's 5:2 Near-Resonance",
+  'The Grand Tack Hypothesis'
+];
+
+function nav(n){
+  chapter=n;
+  document.querySelectorAll('.cpanel').forEach(function(p,i){p.classList.toggle('on',i+1===n)});
+  document.querySelectorAll('.dot').forEach(function(d,i){d.classList.toggle('on',i+1===n)});
+  $('bprev').disabled=n===1;
+  $('bnext').disabled=n===3;
+  $('chnum').textContent='Chapter '+n+' / 3';
+  $('chtitle').textContent=TITLES[n-1];
+  lastTS=null;
+
+  if(n===1){c1.trail=[];c1.t=0;c1.inO=0;c1.outO=0;c1.pIA=0;c1.pOA=0;updC1();}
+  if(n===2){c2.yr=0;c2.conjs=[];c2.relA=0;}
+  if(n===3){c3.ph=0;c3.aT=0;c3.play=true;c3.lpi=-1;$('b3p').textContent='⏸ Pause';}
+}
+
+$('bprev').onclick=function(){if(chapter>1)nav(chapter-1)};
+$('bnext').onclick=function(){if(chapter<3)nav(chapter+1)};
+
+document.addEventListener('keydown',function(e){
+  if(e.key==='ArrowRight'||e.key==='ArrowDown'){if(chapter<3)nav(chapter+1);}
+  else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){if(chapter>1)nav(chapter-1);}
+  else if(e.key===' '&&chapter===3){e.preventDefault();$('b3p').click();}
+});
+</script>
+</body>
+</html>
