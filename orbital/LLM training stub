@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Shape of Meaning — How Latent Space Emerges</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  /* ============ DESIGN TOKENS ============
+     night #07070d · rail #0a0913 · ink #eae4d3 · amber #d9a05b
+     slate #7f9bb3 · rose #c4798a
+     Display: Palatino (scholarly humanist serif) · Utility: tracked small-caps sans
+  */
+  :root{
+    --night:#07070d; --railbg:#0a0913; --ink:#eae4d3; --ink-dim:#9a937f;
+    --amber:#d9a05b; --slate:#7f9bb3; --rose:#c4798a;
+    --rail: clamp(290px, 28vw, 390px);
+    --serif: Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --sans: ui-sans-serif, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  body.clean{ --rail: 0px; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    background: radial-gradient(120% 90% at 60% 10%, #0b0a16 0%, var(--night) 60%, #050509 100%);
+    color:var(--ink); font-family:var(--serif); overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ============ LAYERS ============ */
+  #webgl{ position:fixed; inset:0; z-index:0; opacity:0; transition:opacity 1.2s ease; cursor:grab; }
+  #webgl.on{ opacity:1; }
+  #webgl.dragging{ cursor:grabbing; }
+  #flat{ position:fixed; inset:0; z-index:1; pointer-events:none; opacity:0; transition:opacity 1s ease; }
+  #flat.on{ opacity:1; }
+  #stage{ position:fixed; inset:0; z-index:2; pointer-events:none; }
+
+  /* ============ BEATS ============ */
+  .beat{
+    position:absolute; top:0; bottom:0; left:var(--rail); right:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none; transition:opacity .9s ease, left .55s ease;
+    padding:4vh 4vw 10vh;
+  }
+  .beat.active{ opacity:1; }
+  .beat.active .hoverable{ pointer-events:auto; }
+
+  /* ============ CAPTION RAIL ============ */
+  #rail{
+    position:fixed; left:0; top:0; bottom:0; width:var(--rail); z-index:10;
+    background:var(--railbg); border-right:1px solid rgba(234,228,211,.09);
+    transition:width .55s ease, opacity .45s ease; overflow:hidden;
+  }
+  body.clean #rail{ opacity:0; }
+  .railcard{
+    position:fixed; left:0; top:0; bottom:0; width:clamp(290px, 28vw, 390px); z-index:11;
+    display:flex; flex-direction:column; justify-content:center;
+    padding:6vh 34px 10vh; pointer-events:none;
+    transition:opacity .45s ease;
+  }
+  body.clean .railcard{ opacity:0 !important; }
+  .eyebrow{
+    font-family:var(--sans); font-size:10.5px; letter-spacing:.4em; text-transform:uppercase;
+    color:var(--amber); opacity:.9; margin-bottom:22px;
+  }
+  .cap{
+    font-size:clamp(13.5px, 1.05vw, 16px); line-height:1.72; color:var(--ink);
+  }
+  .cap::before{
+    content:""; display:block; width:46px; height:1px; margin-bottom:18px;
+    background:linear-gradient(90deg, var(--amber), transparent);
+  }
+  .cap p{ margin-bottom:1em; }
+  .cap b{ color:var(--amber); font-weight:500; }
+  .cap i.sl{ color:var(--slate); font-style:normal; }
+  .cap i.rs{ color:var(--rose); font-style:normal; }
+  .cap .plain{ color:var(--ink-dim); font-size:.88em; display:block; margin-top:.8em; font-style:italic; }
+  .sline{ opacity:0; transform:translateY(8px); transition:opacity .9s ease, transform .9s ease; margin-bottom:1em; }
+  .sline.show{ opacity:1; transform:none; }
+  .sline .big{ font-size:1.35em; color:var(--amber); }
+
+  /* ============ BEAT 0 · TITLE ============ */
+  #beat0 .title{
+    font-size:clamp(38px, 6.2vw, 80px); font-weight:500; text-align:center; line-height:1.08;
+  }
+  #beat0 .title em{ font-style:italic; color:var(--amber); }
+  #beat0 .sub{
+    margin-top:3vh; font-style:italic; color:var(--ink-dim); text-align:center;
+    font-size:clamp(14px,1.5vw,18px); max-width:540px; line-height:1.6;
+  }
+  #titleStars{ position:absolute; inset:0; z-index:-1; opacity:.5; }
+
+  /* ============ BEAT 1 · CORPUS ============ */
+  #corpus{ max-width:720px; }
+  #corpus p{
+    font-size:clamp(17px, 2vw, 25px); line-height:1.8; text-align:center; margin:.7vh 0;
+  }
+  .w{ transition:color .25s, text-shadow .25s, opacity .25s; }
+  .w.tracked{ cursor:pointer; }
+  #corpus.focusing .w{ opacity:.22; }
+  #corpus.focusing .w.lit{ opacity:1; color:var(--amber); text-shadow:0 0 18px rgba(217,160,91,.55); }
+
+  /* ============ BEAT 2 · MATRIX ============ */
+  #matrixwrap{ display:flex; flex-direction:column; align-items:center; max-width:100%; }
+  #matrix{ display:grid; gap:2px; font-family:var(--sans); }
+  #matrix .clab{
+    writing-mode:vertical-rl; transform:rotate(206deg);
+    font-size:10px; letter-spacing:.05em; color:var(--ink-dim);
+    display:flex; align-items:center; padding-top:4px; height:62px;
+  }
+  #matrix .rlab{
+    font-size:11px; letter-spacing:.05em; color:var(--ink-dim);
+    display:flex; align-items:center; justify-content:flex-end; padding-right:9px;
+    cursor:pointer; transition:color .25s; white-space:nowrap;
+  }
+  #matrix .rlab:hover, #matrix .rlab.hot{ color:var(--amber); }
+  #matrix .rlab.echo{ color:var(--amber); text-shadow:0 0 14px rgba(217,160,91,.8); animation:pulse 1.1s ease infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.45} }
+  #matrix .cell{
+    width:clamp(12px, 1.5vw, 21px); height:clamp(12px, 1.5vw, 21px);
+    background:rgba(234,228,211,.045); border-radius:2px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:8.5px; color:rgba(234,228,211,.55);
+    transition:background .25s, opacity .25s, box-shadow .25s;
+  }
+  #matrix .cell.c1{ background:rgba(217,160,91,.30); }
+  #matrix .cell.c2{ background:rgba(217,160,91,.62); color:#07070d; }
+  #matrix .cell.dimmed{ opacity:.16; }
+  #matrix .cell.rowlit{ opacity:1; box-shadow:0 0 7px rgba(217,160,91,.3); }
+  #simline{
+    margin-top:2.2vh; font-style:italic; font-size:clamp(12.5px,1.2vw,15px);
+    color:var(--ink-dim); min-height:1.6em; text-align:center;
+  }
+  #simline b{ color:var(--amber); font-weight:500; }
+
+  /* ============ FLAT FIELD STATUS ============ */
+  #epoch{
+    position:fixed; bottom:6.5vh; left:var(--rail); right:0; z-index:12;
+    font-family:var(--sans); font-size:10px; letter-spacing:.3em; text-transform:uppercase;
+    color:var(--ink-dim); text-align:center; opacity:0; transition:opacity .5s, left .55s;
+    pointer-events:none;
+  }
+  #epoch b{ color:var(--amber); font-weight:500; }
+
+  /* ============ BEAT 11 · PAYOFF PROMPT ============ */
+  #prompt{
+    position:fixed; top:9vh; left:var(--rail); right:0; z-index:12; text-align:center;
+    font-size:clamp(19px, 2.2vw, 30px); pointer-events:none;
+    opacity:0; transition:opacity 1.2s ease, left .55s;
+  }
+  #prompt.show{ opacity:1; }
+  #prompt .blank{
+    display:inline-block; min-width:3.2em; border-bottom:1px solid rgba(234,228,211,.5);
+    color:var(--amber); font-style:italic; transition:opacity .9s;
+  }
+  #prompt .blank span{ opacity:0; transition:opacity 1.1s ease; }
+  #prompt .blank.filled span{ opacity:1; text-shadow:0 0 22px rgba(217,160,91,.7); }
+
+  /* ============ CHROME ============ */
+  .ui{ transition:opacity .45s ease; }
+  body.clean .ui{ opacity:0 !important; pointer-events:none !important; }
+  #dots{ position:fixed; bottom:2.1vh; left:calc(var(--rail) + (100vw - var(--rail))/2);
+    transform:translateX(-50%); display:flex; gap:8px; z-index:40; transition:left .55s; }
+  #dots button{ width:6.5px; height:6.5px; border-radius:50%; border:none; cursor:pointer;
+    background:rgba(234,228,211,.18); padding:0; }
+  #dots button.on{ background:var(--amber); box-shadow:0 0 8px rgba(217,160,91,.7); }
+  #dots button:focus-visible{ outline:1px solid var(--amber); outline-offset:3px; }
+  #hint{ position:fixed; bottom:2vh; right:2vw; z-index:40;
+    font-family:var(--sans); font-size:10px; letter-spacing:.14em;
+    color:var(--ink-dim); text-transform:uppercase; }
+  #capbtn{ position:fixed; bottom:1.6vh; left:1.4vw; z-index:60;
+    font-family:var(--sans); font-size:10px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--ink-dim); background:rgba(10,9,19,.6); border:1px solid rgba(234,228,211,.18);
+    border-radius:99px; padding:7px 13px; cursor:pointer;
+    transition:opacity .4s, color .3s, border-color .3s; }
+  #capbtn:hover{ color:var(--ink); border-color:rgba(234,228,211,.4); }
+  body.clean #capbtn{ opacity:.12; }
+  body.clean #capbtn:hover{ opacity:1; }
+  #capbtn:focus-visible{ outline:1px solid var(--amber); outline-offset:2px; }
+  .navzone{ position:fixed; top:0; bottom:8vh; width:7vw; z-index:30; border:none;
+    background:none; cursor:pointer; color:transparent; font-size:30px; font-family:var(--serif); }
+  .navzone:hover{ color:rgba(234,228,211,.3); }
+  #zprev{ left:var(--rail); transition:left .55s; } #znext{ right:0; }
+
+  @media (max-width:760px){
+    :root{ --rail: clamp(220px, 38vw, 290px); }
+    .railcard{ width:clamp(220px, 38vw, 290px); padding:4vh 20px 8vh; }
+    .cap{ font-size:12px; line-height:1.6; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .beat{ transition:opacity .2s; }
+    .sline{ transition:opacity .3s; transform:none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="webgl" aria-label="3-D word galaxy. Drag to rotate."></div>
+<canvas id="flat"></canvas>
+
+<div id="stage">
+
+  <!-- BEAT 0 · TITLE -->
+  <section class="beat active" id="beat0">
+    <canvas id="titleStars"></canvas>
+    <div class="railcard">
+      <div class="eyebrow">How a language model learns</div>
+      <div class="cap"><p><b>→</b> and <b>←</b> move between beats.</p>
+      <p><b>C</b> collapses this panel for a clean recording. <b>R</b> rescatters an animation.</p>
+      <p>Drag the sky, once there is one.</p></div>
+    </div>
+    <h1 class="title">The Shape<br>of <em>Meaning</em></h1>
+    <p class="sub">How structure nobody designed emerges<br>from more text than anybody could read.</p>
+  </section>
+
+  <!-- BEAT 1 · CORPUS -->
+  <section class="beat" id="beat1">
+    <div class="railcard">
+      <div class="eyebrow">I · The corpus</div>
+      <div class="cap"><p>Eight sentences. Pretend this is <em>everything</em> the system will ever see — no dictionary, no grammar lessons, no world. Only words, and the company they keep.</p>
+      <p>Run your cursor over a word. In here it has no definition. It only has neighbors.</p></div>
+    </div>
+    <div id="corpus" class="hoverable"></div>
+  </section>
+
+  <!-- BEAT 2 · MATRIX -->
+  <section class="beat" id="beat2">
+    <div class="railcard">
+      <div class="eyebrow">II · The count</div>
+      <div class="cap"><p>Count which words share a sentence with which. Each row is a word's <em>fingerprint</em> — the record of its company.</p>
+      <p>Hover <b>king</b>, then <b>queen</b>: two nearly identical rows. Nobody put that similarity there. It was already in the text, waiting to be counted.</p></div>
+    </div>
+    <div id="matrixwrap" class="hoverable">
+      <div id="matrix"></div>
+      <div id="simline">hover a word on the left</div>
+    </div>
+  </section>
+
+  <!-- BEAT 3 · SETTLING -->
+  <section class="beat" id="beat3">
+    <div class="railcard">
+      <div class="eyebrow">III · The settling</div>
+      <div class="cap"><p>Scatter the words, then let the fingerprints act like forces: similar rows attract, different rows repel. The picture relaxes into the one layout that honors every fingerprint at once.</p>
+      <p>Be clear about what this stands in for. A real model never sees the table — it plays a guessing game, <em>predict the hidden word</em>, and every miss nudges the positions. The forces here are a stand-in for that pressure. Same destination, different engine.</p>
+      <p>Press <b>R</b>: new scatter, new picture — yet the same neighborhoods. The coordinates are arbitrary. Only the relations are real.</p>
+      <span class="plain">Two separate training runs of the same model disagree in exactly this way.</span></div>
+    </div>
+  </section>
+
+  <!-- BEAT 4 · FIRST ARROWS -->
+  <section class="beat" id="beat4">
+    <div class="railcard">
+      <div class="eyebrow">IV · The first arrows</div>
+      <div class="cap"><p>The settling bought something for free. <b>king</b> points to <b>queen</b> roughly the way <b>man</b> points to <b>woman</b> and <b>son</b> points to <b>daughter</b>. Nobody drew these arrows into the data. A relation has become a <em>direction</em>.</p>
+      <p>Roughly, though. A flat page is a tight squeeze for this much structure; sometimes the arrows barely agree. Press <b>R</b> and watch them smear and re-form.</p>
+      <p>Keep that complaint. It's about to matter.</p></div>
+    </div>
+  </section>
+
+  <!-- BEAT 5 · CROWDING -->
+  <section class="beat" id="beat5">
+    <div class="railcard">
+      <div class="eyebrow">V · The crowding</div>
+      <div class="cap"><p>Feed it more text, and new words rain in, settling among their company — <b>prince</b> beside king, <b>Tokyo</b> beside the trains.</p>
+      <p>But the page is filling. Some words need to sit near two crowds at once, and a flat sheet can't oblige: relations start fighting over the same few directions.</p>
+      <p>The fix is not a bigger page. It's more <em>directions to differ in</em>.</p></div>
+    </div>
+  </section>
+
+  <!-- BEAT 6 · THE LIFT -->
+  <section class="beat" id="beat6">
+    <div class="railcard">
+      <div class="eyebrow">VI · The lift</div>
+      <div class="cap">
+        <div class="sline">So lift the constellation off the page. The flat picture was one plane of something deeper.</div>
+        <div class="sline">You've watched 27 words settle. A real model settles a vocabulary of about <b>50,000</b> —</div>
+        <div class="sline">— trained on <span class="big">500,000,000,000</span> words. More text than you could read in five thousand lifetimes.</div>
+        <div class="sline">Every faint star joining the sky is a word, placed the same way. And real models don't stop at three dimensions — they use <em>thousands</em>. From here on, you're looking at a shadow. Drag it.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BEAT 7 · ONE DIRECTION -->
+  <section class="beat" id="beat7">
+    <div class="railcard">
+      <div class="eyebrow">VII · One direction</div>
+      <div class="cap"><p>Re-find the arrows — in depth, where they have room.</p>
+      <p><b>king→queen</b>, <b>man→woman</b>, <b>son→daughter</b>, <b>his→her</b>, <b>brother→sister</b>, <b>prince→princess</b>. Six arrows, one direction.</p>
+      <p>The model was never told what gender is. It lies in the space as a direction. Drag to check that the agreement holds from every angle.</p></div>
+    </div>
+  </section>
+
+  <!-- BEAT 8 · ANOTHER DIRECTION -->
+  <section class="beat" id="beat8">
+    <div class="railcard">
+      <div class="eyebrow">VIII · Another direction</div>
+      <div class="cap"><p>A different relation, a different direction.</p>
+      <p><i class="sl">Paris→France</i>, <i class="sl">Rome→Italy</i>, <i class="sl">Tokyo→Japan</i>, <i class="sl">London→England</i>.</p>
+      <p>Capital-to-country is its own path through the space — nowhere parallel to gender.</p></div>
+    </div>
+  </section>
+
+  <!-- BEAT 9 · MANY PATHS -->
+  <section class="beat" id="beat9">
+    <div class="railcard">
+      <div class="eyebrow">IX · Many paths</div>
+      <div class="cap"><p>And one word sits on many paths at once. <b>king→queen</b> is one direction; <i class="rs">king→prince</i> is another.</p>
+      <p>Every relation the text rehearses becomes a direction — and a word just <em>is</em> the crossing-point of all its relations. The full record of the company it keeps.</p></div>
+    </div>
+  </section>
+
+  <!-- BEAT 10 · NEIGHBORHOODS -->
+  <section class="beat" id="beat10">
+    <div class="railcard">
+      <div class="eyebrow">X · Neighborhoods</div>
+      <div class="cap"><p>Pull back, and neighborhoods appear. The labels are <em>ours</em> — the model never learned the word "royalty." The clusters are <em>its</em>.</p>
+      <p>They precipitated out of compression: the cheapest way to predict text turned out to be discovering what the text is about.</p>
+      <p>Drag to a clear angle. The groupings survive any rotation.</p></div>
+    </div>
+  </section>
+
+  <!-- BEAT 11 · PAYOFF -->
+  <section class="beat" id="beat11">
+    <div class="railcard">
+      <div class="eyebrow">XI · The payoff</div>
+      <div class="cap"><p>End where a language model begins: finish the sentence.</p>
+      <p>Candidates glow by how well their company fits — and one small word, <em>her</em>, settles it. <b>queen</b> flares. <b>king</b>, right court, wrong company, only flickers.</p>
+      <p>This is all the machine ever does, billions of times over — and everything you've seen is what that game builds. Meaning, in here, is the company a word keeps.</p>
+      <p>Whether keeping company amounts to <em>understanding</em> — that's the next lesson.</p></div>
+    </div>
+  </section>
+
+</div>
+
+<div id="epoch"></div>
+<div id="prompt">"The <span class="blank" id="blank">&nbsp;<span>queen</span>&nbsp;</span> ruled her kingdom from the castle."</div>
+
+<nav id="dots" class="ui" aria-label="beats"></nav>
+<div id="hint" class="ui">→ next · ← back · C panel · R replay</div>
+<button id="capbtn" aria-label="toggle caption panel">Aa · panel</button>
+<button class="navzone ui" id="zprev" aria-label="previous">‹</button>
+<button class="navzone ui" id="znext" aria-label="next">›</button>
+
+<script>
+"use strict";
+/* ════════════════════════════════════════════════════════════
+   0 · DATA — corpus, co-occurrence, similarity
+   ════════════════════════════════════════════════════════════ */
+const BASE_SENTENCES = [
+  "The king ruled his kingdom from the castle.",
+  "The queen ruled her kingdom from the castle.",
+  "The man told a story to his son.",
+  "The woman told a story to her daughter.",
+  "Paris is the capital of France.",
+  "Rome is the capital of Italy.",
+  "The train to Paris was late.",
+  "The train to Rome was late."
+];
+const EXTRA_SENTENCES = [
+  "The prince ruled his kingdom from the castle.",
+  "The princess ruled her kingdom from the castle.",
+  "The man told a story to his brother.",
+  "The woman told a story to her sister.",
+  "Tokyo is the capital of Japan.",
+  "London is the capital of England.",
+  "The train to Tokyo was late.",
+  "The train to London was late."
+];
+const BASE_TRACKED = ["capital","castle","daughter","france","her","his","italy","king",
+  "kingdom","man","paris","queen","rome","ruled","son","story","told","train","woman"];
+const EXTRA_TRACKED = ["brother","england","japan","london","prince","princess","sister","tokyo"];
+const FULL_TRACKED = BASE_TRACKED.concat(EXTRA_TRACKED);
+
+function tokensOf(s){ return s.toLowerCase().replace(/[^a-z\s]/g,"").split(/\s+/).filter(Boolean); }
+function buildStats(words, sentences){
+  const idx=Object.fromEntries(words.map((w,i)=>[w,i])), n=words.length;
+  const cooc=Array.from({length:n},()=>new Array(n).fill(0));
+  for(const s of sentences){
+    const tw=[...new Set(tokensOf(s).filter(w=>w in idx))];
+    for(let a=0;a<tw.length;a++) for(let b=a+1;b<tw.length;b++){
+      cooc[idx[tw[a]]][idx[tw[b]]]++; cooc[idx[tw[b]]][idx[tw[a]]]++; }
+  }
+  function cos(a,b){ let d=0,na=0,nb=0;
+    for(let i=0;i<n;i++){ d+=cooc[a][i]*cooc[b][i]; na+=cooc[a][i]**2; nb+=cooc[b][i]**2; }
+    return (na&&nb)? d/Math.sqrt(na*nb) : 0; }
+  const sim=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=> i===j?1:cos(i,j)));
+  return {words, idx, cooc, sim, n};
+}
+const MSTAT = buildStats(BASE_TRACKED, BASE_SENTENCES);                 // matrix beat
+const FSTAT = buildStats(FULL_TRACKED, BASE_SENTENCES.concat(EXTRA_SENTENCES));
+
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0;
+  let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t;
+  return ((t^t>>>14)>>>0)/4294967296; }; }
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function railWTarget(){ return document.body.classList.contains("clean") ? 0
+  : Math.min(Math.max(290, innerWidth*0.28), 390); }
+
+/* ════════════════════════════════════════════════════════════
+   1 · BEAT MANAGER
+   ════════════════════════════════════════════════════════════ */
+const beats=[...document.querySelectorAll(".beat")], NB=beats.length;
+let cur=0;
+const onEnter={}, onExit={};
+const dots=document.getElementById("dots");
+beats.forEach((_,i)=>{ const b=document.createElement("button");
+  b.addEventListener("click",()=>goTo(i)); b.setAttribute("aria-label","beat "+(i+1));
+  dots.appendChild(b); });
+function paintDots(){ [...dots.children].forEach((d,i)=>d.classList.toggle("on",i===cur)); }
+function goTo(i){
+  if(i<0||i>=NB||i===cur) return;
+  (onExit[cur]||(()=>{}))();
+  beats[cur].classList.remove("active");
+  cur=i;
+  beats[cur].classList.add("active");
+  document.getElementById("webgl").classList.toggle("on", cur>=6);
+  document.getElementById("flat").classList.toggle("on", cur>=3 && cur<=5);
+  document.getElementById("epoch").style.opacity = (cur>=3&&cur<=5)?1:0;
+  (onEnter[cur]||(()=>{}))();
+  paintDots();
+}
+paintDots();
+document.addEventListener("keydown",e=>{
+  if(e.key==="ArrowRight"||e.key===" "){ e.preventDefault(); goTo(cur+1); }
+  else if(e.key==="ArrowLeft"){ e.preventDefault(); goTo(cur-1); }
+  else if(e.key==="c"||e.key==="C"){ toggleRail(); }
+  else if(e.key==="r"||e.key==="R"){
+    if(cur===3||cur===4) startSettle();
+    else if(cur===5) startCrowd(true);
+  }
+});
+document.getElementById("znext").addEventListener("click",()=>goTo(cur+1));
+document.getElementById("zprev").addEventListener("click",()=>goTo(cur-1));
+function toggleRail(){
+  document.body.classList.toggle("clean");
+  const on=!document.body.classList.contains("clean");
+  document.getElementById("capbtn").textContent = on ? "Aa · panel" : "Aa · hidden";
+}
+document.getElementById("capbtn").addEventListener("click",toggleRail);
+
+/* ════════════════════════════════════════════════════════════
+   2 · TITLE STARS
+   ════════════════════════════════════════════════════════════ */
+(function(){
+  const c=document.getElementById("titleStars"), x=c.getContext("2d");
+  function draw(){ c.width=innerWidth; c.height=innerHeight; x.clearRect(0,0,c.width,c.height);
+    const r=mulberry32(11);
+    for(let i=0;i<160;i++){ x.fillStyle=`rgba(234,228,211,${r()*0.5+0.06})`;
+      x.beginPath(); x.arc(r()*c.width, r()*c.height, r()*1.1+0.2, 0, 7); x.fill(); } }
+  draw(); addEventListener("resize",draw);
+})();
+
+/* ════════════════════════════════════════════════════════════
+   3 · BEAT 1 — corpus hover
+   ════════════════════════════════════════════════════════════ */
+(function(){
+  const box=document.getElementById("corpus");
+  const idx=Object.fromEntries(BASE_TRACKED.map(w=>[w,1]));
+  for(const s of BASE_SENTENCES){
+    const p=document.createElement("p");
+    s.split(/(\s+)/).forEach(part=>{
+      if(/^\s+$/.test(part)){ p.appendChild(document.createTextNode(part)); return; }
+      const clean=part.toLowerCase().replace(/[^a-z]/g,"");
+      const span=document.createElement("span");
+      span.className="w"+(clean in idx?" tracked":"");
+      span.dataset.w=clean; span.textContent=part;
+      p.appendChild(span);
+    });
+    box.appendChild(p);
+  }
+  box.addEventListener("mouseover",e=>{
+    const t=e.target.closest(".w.tracked"); if(!t) return;
+    box.classList.add("focusing");
+    box.querySelectorAll(".w").forEach(w=>w.classList.toggle("lit", w.dataset.w===t.dataset.w));
+  });
+  box.addEventListener("mouseleave",()=>{ box.classList.remove("focusing");
+    box.querySelectorAll(".w.lit").forEach(w=>w.classList.remove("lit")); });
+})();
+
+/* ════════════════════════════════════════════════════════════
+   4 · BEAT 2 — co-occurrence matrix
+   ════════════════════════════════════════════════════════════ */
+(function(){
+  const {words,cooc,sim,n}=MSTAT;
+  const m=document.getElementById("matrix"), simline=document.getElementById("simline");
+  m.style.gridTemplateColumns=`auto repeat(${n}, auto)`;
+  m.appendChild(document.createElement("div"));
+  words.forEach(w=>{ const d=document.createElement("div"); d.className="clab"; d.textContent=w; m.appendChild(d); });
+  const rows=[];
+  words.forEach((w,i)=>{
+    const lab=document.createElement("div"); lab.className="rlab"; lab.textContent=w; lab.dataset.i=i;
+    m.appendChild(lab);
+    const cells=[];
+    for(let j=0;j<n;j++){
+      const c=document.createElement("div"), v=cooc[i][j];
+      c.className="cell"+(v>=2?" c2":v===1?" c1":"");
+      if(v>0) c.textContent=v;
+      m.appendChild(c); cells.push(c);
+    }
+    rows.push({lab,cells});
+  });
+  function clear(){ simline.textContent="hover a word on the left";
+    rows.forEach(r=>{ r.lab.classList.remove("hot","echo");
+      r.cells.forEach(c=>c.classList.remove("dimmed","rowlit")); }); }
+  m.addEventListener("mouseover",e=>{
+    const lab=e.target.closest(".rlab"); if(!lab) return;
+    const i=+lab.dataset.i; let best=-1,bs=-1;
+    for(let j=0;j<n;j++) if(j!==i&&sim[i][j]>bs){ bs=sim[i][j]; best=j; }
+    rows.forEach((r,k)=>{
+      r.lab.classList.toggle("hot",k===i); r.lab.classList.toggle("echo",k===best);
+      r.cells.forEach(c=>{ c.classList.toggle("rowlit",k===i||k===best);
+                           c.classList.toggle("dimmed",k!==i&&k!==best); });
+    });
+    simline.innerHTML=`closest fingerprint to <b>${words[i]}</b>: <b>${words[best]}</b> · ${(bs*100).toFixed(0)}% match`;
+  });
+  m.addEventListener("mouseleave",clear);
+})();
+
+/* ════════════════════════════════════════════════════════════
+   5 · FLAT FIELD (beats 3–5): settle, arrows, crowd
+   ════════════════════════════════════════════════════════════ */
+const flat=document.getElementById("flat"), fx=flat.getContext("2d");
+const epochEl=document.getElementById("epoch");
+const SEEDS=[7,59,46,98,85,111];   // first seed chosen for clean arrow parallelism
+let seedTick=0;
+const phys={ stat:null, nodes:[], epoch:0, total:620, running:false };
+const FLAT_ARROWS=[["king","queen"],["man","woman"],["son","daughter"]];
+
+function sizeFlat(){
+  const dpr=Math.min(devicePixelRatio||1,2);
+  flat.width=innerWidth*dpr; flat.height=innerHeight*dpr;
+  flat.style.width=innerWidth+"px"; flat.style.height=innerHeight+"px";
+  fx.setTransform(dpr,0,0,dpr,0,0);
+}
+sizeFlat(); addEventListener("resize",sizeFlat);
+
+function bounds(){
+  const L=railWTarget()+60;
+  return {L, R:innerWidth-60, T:80, B:innerHeight-100,
+          cx:(L+innerWidth-60)/2, cy:innerHeight*0.46,
+          W:innerWidth-60-L };
+}
+function spawnNode(w,r,bd){ return {w, x:bd.L+r()*bd.W, y:bd.T+r()*(bd.B-bd.T), vx:0, vy:0}; }
+
+function startSettle(){
+  const bd=bounds(), r=mulberry32(SEEDS[(seedTick++)%SEEDS.length]);
+  phys.stat=buildStats(BASE_TRACKED, BASE_SENTENCES);
+  phys.nodes=BASE_TRACKED.map(w=>spawnNode(w,r,bd));
+  phys.epoch=0; phys.total=620; phys.running=true;
+  if(reduceMotion){ for(let k=0;k<800;k++) stepPhys(1); finishPhys(); }
+}
+function startCrowd(rescatter){
+  const bd=bounds(), r=mulberry32(200+(seedTick++)*7);
+  phys.stat=buildStats(FULL_TRACKED, BASE_SENTENCES.concat(EXTRA_SENTENCES));
+  const have=Object.fromEntries(phys.nodes.map(n=>[n.w,n]));
+  phys.nodes=FULL_TRACKED.map(w=>{
+    if(have[w] && !rescatter) return have[w];
+    if(have[w] && rescatter && BASE_TRACKED.includes(w)) return have[w];
+    return spawnNode(w,r,bd);
+  });
+  phys.epoch=0; phys.total=420; phys.running=true;
+  if(reduceMotion){ for(let k=0;k<600;k++) stepPhys(1); finishPhys(); }
+}
+function ensureFlatState(full){
+  if(!phys.nodes.length){ startSettle(); for(let k=0;k<800;k++) stepPhys(1); finishPhys(); }
+  if(full && phys.nodes.length<FULL_TRACKED.length){
+    startCrowd(false); for(let k=0;k<600;k++) stepPhys(1); finishPhys();
+  }
+}
+function stepPhys(alpha){
+  const bd=bounds(), sim=phys.stat.sim, idx=phys.stat.idx, ns=phys.nodes, n=ns.length;
+  const DN=64, DF=Math.min(bd.W, innerHeight*1.3)*0.46;
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
+    const a=ns[i], b=ns[j];
+    let dx=b.x-a.x, dy=b.y-a.y, dist=Math.hypot(dx,dy)||0.01;
+    const s=sim[idx[a.w]][idx[b.w]];
+    const target=DF-(DF-DN)*Math.pow(s,0.6);
+    let f=(dist-target)*0.0011*(0.22+s);
+    if(dist<50) f-=(50-dist)*0.05;
+    const ux=dx/dist, uy=dy/dist;
+    a.vx+=f*ux*alpha; a.vy+=f*uy*alpha; b.vx-=f*ux*alpha; b.vy-=f*uy*alpha;
+  }
+  for(const nd of ns){
+    nd.vx+=(bd.cx-nd.x)*0.0012*alpha; nd.vy+=(bd.cy-nd.y)*0.0012*alpha;
+    nd.vx*=0.86; nd.vy*=0.86; nd.x+=nd.vx; nd.y+=nd.vy;
+    nd.x=Math.max(bd.L,Math.min(bd.R,nd.x)); nd.y=Math.max(bd.T,Math.min(bd.B,nd.y));
+  }
+}
+function finishPhys(){ phys.running=false; phys.epoch=phys.total; }
+function nodeByWord(w){ return phys.nodes.find(n=>n.w===w); }
+
+function drawFlat(){
+  if(phys.running && !reduceMotion){ fx.fillStyle="rgba(7,7,13,0.32)"; fx.fillRect(0,0,innerWidth,innerHeight); }
+  else fx.clearRect(0,0,innerWidth,innerHeight);
+  fx.textAlign="center";
+  for(const n of phys.nodes){
+    const g=fx.createRadialGradient(n.x,n.y,0,n.x,n.y,13);
+    g.addColorStop(0,"rgba(217,160,91,0.5)"); g.addColorStop(1,"rgba(217,160,91,0)");
+    fx.fillStyle=g; fx.beginPath(); fx.arc(n.x,n.y,13,0,7); fx.fill();
+    fx.fillStyle="#eae4d3"; fx.beginPath(); fx.arc(n.x,n.y,2.2,0,7); fx.fill();
+    fx.font="14px Palatino, Georgia, serif";
+    fx.fillStyle="rgba(234,228,211,0.92)";
+    fx.fillText(n.w, n.x, n.y-9);
+  }
+  if(cur===4){
+    for(const [a,b] of FLAT_ARROWS){
+      const A=nodeByWord(a), B=nodeByWord(b); if(!A||!B) continue;
+      drawArrow2D(A.x,A.y,B.x,B.y);
+    }
+  }
+}
+function drawArrow2D(x1,y1,x2,y2){
+  const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy); if(len<8) return;
+  const ux=dx/len, uy=dy/len;
+  const sx=x1+ux*12, sy=y1+uy*12, ex=x2-ux*14, ey=y2-uy*14;
+  fx.save();
+  fx.strokeStyle="rgba(217,160,91,0.9)"; fx.fillStyle="rgba(217,160,91,0.9)";
+  fx.shadowColor="rgba(217,160,91,0.8)"; fx.shadowBlur=10; fx.lineWidth=2;
+  fx.beginPath(); fx.moveTo(sx,sy); fx.lineTo(ex,ey); fx.stroke();
+  const hx=ex, hy=ey, s=8;
+  fx.beginPath();
+  fx.moveTo(hx+ux*s, hy+uy*s);
+  fx.lineTo(hx-uy*s*0.55, hy+ux*s*0.55);
+  fx.lineTo(hx+uy*s*0.55, hy-ux*s*0.55);
+  fx.closePath(); fx.fill();
+  fx.restore();
+}
+function flatLoop(){
+  if(cur<3||cur>5) return;
+  if(phys.running){
+    const alpha=0.25+Math.max(0,1-phys.epoch/phys.total);
+    stepPhys(alpha); phys.epoch++;
+    epochEl.innerHTML=`settling · step <b>${Math.min(phys.epoch,phys.total)}</b> / ${phys.total}`;
+    if(phys.epoch>=phys.total){ finishPhys();
+      epochEl.innerHTML="settled · <b>nobody placed them</b>"; }
+  } else if(!epochEl.textContent) epochEl.innerHTML="settled · <b>nobody placed them</b>";
+  drawFlat();
+  requestAnimationFrame(flatLoop);
+}
+onEnter[3]=()=>{ if(phys.nodes.length!==BASE_TRACKED.length) startSettle();
+  epochEl.innerHTML=""; requestAnimationFrame(flatLoop); };
+onEnter[4]=()=>{ ensureFlatState(false); epochEl.innerHTML="settled · <b>nobody placed them</b>";
+  requestAnimationFrame(flatLoop); };
+onEnter[5]=()=>{ ensureFlatState(false);
+  if(phys.nodes.length<FULL_TRACKED.length) startCrowd(false);
+  requestAnimationFrame(flatLoop); };
+
+/* ════════════════════════════════════════════════════════════
+   6 · THE GALAXY (beats 6–11)
+   ════════════════════════════════════════════════════════════ */
+const glHost=document.getElementById("webgl");
+let renderer, scene, camera, rig, galaxy, bgPoints, threeReady=false, lifted=false;
+const fgSprites={}, midSprites=[], glowSprites=[], clusterLabels=[];
+let queenGlow=null, kingGlow=null;
+let arrowsA=[], arrowsB=[], arrowsC=[], arrowsBuilt=false;
+const fades=[], tweens=[];
+const FOV=55, CAMZ0=92;
+let camZ=CAMZ0, camZT=CAMZ0;
+let rotY=0, rotX=0, rotVelY=0, rotVelX=0;
+let homing=false, homeY=0, homeX=0;
+const AUTOROT = reduceMotion ? 0 : 0.00045;
+let beatTimers=[];
+function clearTimers(){ beatTimers.forEach(clearTimeout); beatTimers=[]; }
+function fadeTo(mat,t){ const f=fades.find(f=>f.mat===mat); if(f) f.t=t; else fades.push({mat,t}); }
+function worldPerPx(z){ return (2*z*Math.tan(FOV*Math.PI/360))/innerHeight; }
+function rigOffTarget(){ return (railWTarget()/2)*worldPerPx(CAMZ0); }
+
+/* — semantic positions: vector arithmetic made literal — */
+const VG=[9,-3.5,2.5], VGEN=[-4,9,7], VC=[-6,6,-5];
+function add(a,b){ return [a[0]+b[0],a[1]+b[1],a[2]+b[2]]; }
+const Pking=[-34,11,-4], Pman=[18,-12,4], Pparis=[-4,27,-14], Pbro=[26,-21,12], Phis=[10,-18,-2];
+const RAW_POS={
+  king:Pking, queen:add(Pking,VG), prince:add(Pking,VGEN), princess:add(add(Pking,VG),VGEN),
+  ruled:[-42,4,-1], kingdom:[-29,5,-13], castle:[-40,1,-9],
+  man:Pman, woman:add(Pman,VG), son:add(Pman,VGEN), daughter:add(add(Pman,VG),VGEN),
+  brother:Pbro, sister:add(Pbro,VG), his:Phis, her:add(Phis,VG),
+  told:[30,-4,-3], story:[35,-10,7],
+  paris:Pparis, france:add(Pparis,VC),
+  rome:add(Pparis,[14,-6,-8]), italy:add(add(Pparis,[14,-6,-8]),VC),
+  tokyo:add(Pparis,[19,9,5]),  japan:add(add(Pparis,[19,9,5]),VC),
+  london:add(Pparis,[-15,-3,9]), england:add(add(Pparis,[-15,-3,9]),VC),
+  capital:[0,22,-18], train:[5,31,-3]
+};
+let T={};                                            // aligned targets (THREE.Vector3)
+const CLUSTERS=[
+  {name:"R O Y A L T Y", color:0xd9a05b, members:["king","queen","prince","princess","ruled","kingdom","castle"]},
+  {name:"K I N S H I P", color:0xc4798a, members:["man","woman","son","daughter","brother","sister","his","her","told","story"]},
+  {name:"P L A C E S",   color:0x7f9bb3, members:["paris","rome","tokyo","london","france","italy","japan","england","capital","train"]}
+];
+const FAM_A=[["king","queen"],["prince","princess"],["man","woman"],["son","daughter"],["brother","sister"],["his","her"]];
+const FAM_B=[["paris","france"],["rome","italy"],["tokyo","japan"],["london","england"]];
+const FAM_C=[["king","prince"],["queen","princess"],["man","son"],["woman","daughter"]];
+const SET_A=new Set(FAM_A.flat()), SET_B=new Set(FAM_B.flat()), SET_C=new Set(FAM_C.flat());
+const MIDWORDS=["bread","river","music","doctor","window","seven","blue","run","mountain",
+  "letter","winter","horse","market","ocean","glass","road","fire","garden","clock","ship",
+  "stone","rain","gold","dream","door","bird","salt","paper","voice","night","wheel","song",
+  "iron","cloud","field","lamp"];
+
+function makeCanvasTex(draw,w,h){
+  const cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+  draw(cv.getContext("2d"),w,h);
+  const t=new THREE.CanvasTexture(cv); t.minFilter=THREE.LinearFilter; return t;
+}
+function textSprite(text,{font="500 60px Palatino, Georgia, serif", color="#eae4d3", scale=4.6}={}){
+  const pad=24, meas=document.createElement("canvas").getContext("2d");
+  meas.font=font; const w=Math.ceil(meas.measureText(text).width)+pad*2;
+  const tex=makeCanvasTex((c2)=>{ c2.font=font; c2.fillStyle=color; c2.textBaseline="middle";
+    c2.shadowColor=color; c2.shadowBlur=14; c2.fillText(text,pad,48); }, w, 96);
+  const mat=new THREE.SpriteMaterial({map:tex, transparent:true, opacity:0, depthWrite:false});
+  const sp=new THREE.Sprite(mat);
+  sp.scale.set(w/96*scale, scale, 1);
+  return sp;
+}
+const softDot = ()=>makeCanvasTex((c)=>{ const g=c.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,"rgba(255,255,255,1)"); g.addColorStop(0.4,"rgba(255,255,255,0.45)");
+  g.addColorStop(1,"rgba(255,255,255,0)"); c.fillStyle=g; c.fillRect(0,0,64,64); },64,64);
+const glowTex = ()=>makeCanvasTex((c)=>{ const g=c.createRadialGradient(128,128,0,128,128,128);
+  g.addColorStop(0,"rgba(255,255,255,0.8)"); g.addColorStop(0.4,"rgba(255,255,255,0.2)");
+  g.addColorStop(1,"rgba(255,255,255,0)"); c.fillStyle=g; c.fillRect(0,0,256,256); },256,256);
+
+function initThree(){
+  if(threeReady) return;
+  renderer=new THREE.WebGLRenderer({antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+  renderer.setSize(innerWidth,innerHeight);
+  glHost.appendChild(renderer.domElement);
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(FOV, innerWidth/innerHeight, 0.1, 700);
+  camera.position.set(0,0,camZ);
+  rig=new THREE.Group(); scene.add(rig);
+  rig.position.x=rigOffTarget();
+  galaxy=new THREE.Group(); rig.add(galaxy);
+
+  /* background starfield: clumped + diffuse, round soft points */
+  const r=mulberry32(42);
+  const COUNT = innerWidth<700 ? 3000 : 5600;
+  const pos=new Float32Array(COUNT*3), col=new Float32Array(COUNT*3);
+  const clumps=[];
+  for(let i=0;i<14;i++){
+    const th=r()*Math.PI*2, ph=Math.acos(2*r()-1), rad=28+r()*68;
+    clumps.push({c:[rad*Math.sin(ph)*Math.cos(th), rad*Math.sin(ph)*Math.sin(th)*0.7, rad*Math.cos(ph)], s:5.5+r()*8});
+  }
+  const gauss=()=> (r()+r()+r()+r()-2)/1.2;
+  const tc=new THREE.Color();
+  for(let i=0;i<COUNT;i++){
+    let p;
+    if(r()<0.55){ const cl=clumps[i%clumps.length];
+      p=[cl.c[0]+gauss()*cl.s, cl.c[1]+gauss()*cl.s, cl.c[2]+gauss()*cl.s]; }
+    else { const th=r()*Math.PI*2, ph=Math.acos(2*r()-1), rad=20+Math.cbrt(r())*115;
+      p=[rad*Math.sin(ph)*Math.cos(th), rad*Math.sin(ph)*Math.sin(th)*0.8, rad*Math.cos(ph)]; }
+    pos.set(p,i*3);
+    if(r()<0.12) tc.setHSL(0.085,0.55,0.62+r()*0.25);
+    else         tc.setHSL(0.58+r()*0.08,0.25,0.62+r()*0.33);
+    col.set([tc.r,tc.g,tc.b],i*3);
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute("position",new THREE.BufferAttribute(pos,3));
+  geo.setAttribute("color",new THREE.BufferAttribute(col,3));
+  bgPoints=new THREE.Points(geo,new THREE.PointsMaterial({
+    map:softDot(), size:2.1, sizeAttenuation:true, vertexColors:true, transparent:true,
+    opacity:0, depthWrite:false, blending:THREE.AdditiveBlending }));
+  galaxy.add(bgPoints);
+
+  /* foreground word sprites (positions set during the lift) */
+  for(const w of FULL_TRACKED){
+    const sp=textSprite(w); sp.position.set(...RAW_POS[w]);
+    galaxy.add(sp); fgSprites[w]=sp;
+  }
+  /* midground dim vocabulary */
+  const jr=mulberry32(99);
+  for(const w of MIDWORDS){
+    const th=jr()*Math.PI*2, ph=Math.acos(2*jr()-1), rad=44+jr()*62;
+    const sp=textSprite(w,{scale:2.9, color:"#b9b2a0"});
+    sp.position.set(rad*Math.sin(ph)*Math.cos(th), rad*Math.sin(ph)*Math.sin(th)*0.75, rad*Math.cos(ph));
+    galaxy.add(sp); midSprites.push(sp);
+  }
+
+  /* drag — listeners on window so nothing can eat them */
+  let down=false, lx=0, ly=0;
+  addEventListener("pointerdown",e=>{
+    if(cur<6) return;
+    if(e.target.closest("button")) return;
+    down=true; lx=e.clientX; ly=e.clientY; homing=false;
+    glHost.classList.add("dragging");
+  });
+  addEventListener("pointermove",e=>{ if(!down) return;
+    rotVelY=(e.clientX-lx)*0.0032; rotVelX=(e.clientY-ly)*0.0022;
+    lx=e.clientX; ly=e.clientY; });
+  addEventListener("pointerup",()=>{ down=false; glHost.classList.remove("dragging"); });
+
+  addEventListener("resize",()=>{ camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+  threeReady=true;
+  (function loop(){
+    requestAnimationFrame(loop);
+    if(homing){
+      const dy=((homeY-rotY+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;
+      rotY+=dy*0.035; rotX+=(homeX-rotX)*0.035;
+    } else {
+      rotY+=AUTOROT+rotVelY; rotX+=rotVelX;
+      rotVelY*=0.93; rotVelX*=0.93;
+      rotX=Math.max(-0.55,Math.min(0.55,rotX));
+    }
+    galaxy.rotation.y=rotY; galaxy.rotation.x=rotX;
+    camZ+=(camZT-camZ)*0.04; camera.position.z=camZ;
+    rig.position.x+=(rigOffTarget()-rig.position.x)*0.08;
+    for(const f of fades) f.mat.opacity+=(f.t-f.mat.opacity)*0.06;
+    for(let i=tweens.length-1;i>=0;i--){
+      const tw=tweens[i]; tw.t=Math.min(1, tw.t+16/tw.dur);
+      const e=tw.t<.5 ? 2*tw.t*tw.t : 1-Math.pow(-2*tw.t+2,2)/2;
+      tw.sp.position.lerpVectors(tw.from,tw.to,e);
+      if(tw.t>=1) tweens.splice(i,1);
+    }
+    if(cur===11 && fgSprites.queen){
+      const s=1+0.07*Math.sin(performance.now()/280);
+      const q=fgSprites.queen; q.scale.set(q.userData.bw*s, q.userData.bh*s, 1);
+    }
+    renderer.render(scene,camera);
+  })();
+}
+
+/* — the lift: align settled 2D layout to the 3D configuration — */
+function computeAlignment(){
+  ensureFlatState(true);
+  const wpp=worldPerPx(CAMZ0), off=rigOffTarget();
+  const starts={};
+  for(const n of phys.nodes){
+    starts[n.w]=[(n.x-innerWidth/2)*wpp-off, -(n.y-innerHeight/2)*wpp];
+  }
+  const words=FULL_TRACKED;
+  const A=words.map(w=>[RAW_POS[w][0],RAW_POS[w][1]]);     // targets (xy)
+  const B=words.map(w=>starts[w]);                          // settled starts
+  const mean=P=>P.reduce((m,p)=>[m[0]+p[0]/P.length, m[1]+p[1]/P.length],[0,0]);
+  const mA=mean(A), mB=mean(B);
+  const Ac=A.map(p=>[p[0]-mA[0],p[1]-mA[1]]), Bc=B.map(p=>[p[0]-mB[0],p[1]-mB[1]]);
+  let best=null;
+  for(const refl of [1,-1]){
+    let num=0, den=0, na=0;
+    for(let i=0;i<Ac.length;i++){
+      const ax=refl*Ac[i][0], ay=Ac[i][1], bx=Bc[i][0], by=Bc[i][1];
+      num+=ax*by-ay*bx; den+=ax*bx+ay*by; na+=ax*ax+ay*ay;
+    }
+    const th=Math.atan2(num,den);
+    let s=(Math.cos(th)*den+Math.sin(th)*num)/na;
+    s=Math.max(0.75,Math.min(1.3,s));
+    let res=0;
+    for(let i=0;i<Ac.length;i++){
+      const ax=refl*Ac[i][0], ay=Ac[i][1];
+      const rx=s*(ax*Math.cos(th)-ay*Math.sin(th)), ry=s*(ax*Math.sin(th)+ay*Math.cos(th));
+      res+=(rx-Bc[i][0])**2+(ry-Bc[i][1])**2;
+    }
+    if(!best||res<best.res) best={refl,th,s,res};
+  }
+  T={};
+  for(const w of words){
+    const p=RAW_POS[w], ax=best.refl*(p[0]-mA[0]), ay=p[1]-mA[1];
+    T[w]=new THREE.Vector3(
+      best.s*(ax*Math.cos(best.th)-ay*Math.sin(best.th)),
+      best.s*(ax*Math.sin(best.th)+ay*Math.cos(best.th)),
+      best.s*p[2]);
+  }
+  return starts;
+}
+function buildDecorations(){
+  if(arrowsBuilt) return;
+  function mkArrow(a,b,color){
+    const pa=T[a], pb=T[b];
+    const dir=pb.clone().sub(pa); const len=dir.length();
+    const ar=new THREE.ArrowHelper(dir.normalize(), pa, len-2.5, color, 3.2, 1.6);
+    ar.line.material.transparent=true; ar.cone.material.transparent=true;
+    ar.line.material.opacity=0; ar.cone.material.opacity=0;
+    galaxy.add(ar); return ar;
+  }
+  arrowsA=FAM_A.map(([a,b])=>mkArrow(a,b,0xd9a05b));
+  arrowsB=FAM_B.map(([a,b])=>mkArrow(a,b,0x7f9bb3));
+  arrowsC=FAM_C.map(([a,b])=>mkArrow(a,b,0xc4798a));
+  const gt=glowTex();
+  for(const cl of CLUSTERS){
+    const c=new THREE.Vector3();
+    cl.members.forEach(w=>c.add(T[w])); c.multiplyScalar(1/cl.members.length);
+    const mat=new THREE.SpriteMaterial({map:gt, color:cl.color, transparent:true,
+      opacity:0, depthWrite:false, blending:THREE.AdditiveBlending});
+    const g=new THREE.Sprite(mat); g.position.copy(c); g.scale.set(50,50,1);
+    galaxy.add(g); glowSprites.push(g);
+    const lb=textSprite(cl.name,{font:"600 38px ui-sans-serif, system-ui, sans-serif",
+      color:"#"+cl.color.toString(16).padStart(6,"0"), scale:3.2});
+    lb.position.set(c.x, c.y+16, c.z);
+    galaxy.add(lb); clusterLabels.push(lb);
+  }
+  const qg=new THREE.SpriteMaterial({map:gt, color:0xd9a05b, transparent:true, opacity:0,
+    depthWrite:false, blending:THREE.AdditiveBlending});
+  queenGlow=new THREE.Sprite(qg); queenGlow.position.copy(T.queen); queenGlow.scale.set(16,16,1);
+  galaxy.add(queenGlow);
+  const kg=qg.clone(); kingGlow=new THREE.Sprite(kg); kingGlow.position.copy(T.king);
+  kingGlow.scale.set(11,11,1); galaxy.add(kingGlow);
+  for(const w of FULL_TRACKED){ const sp=fgSprites[w];
+    sp.userData.bw=sp.scale.x; sp.userData.bh=sp.scale.y; }
+  arrowsBuilt=true;
+}
+function doLift(instant){
+  if(lifted){ return; }
+  initThree();
+  const starts=computeAlignment();
+  buildDecorations();
+  for(const w of FULL_TRACKED){
+    const sp=fgSprites[w];
+    const from=new THREE.Vector3(starts[w][0], starts[w][1], 0);
+    if(instant||reduceMotion){ sp.position.copy(T[w]); }
+    else { sp.position.copy(from);
+      tweens.push({sp, from, to:T[w].clone(), t:-(Math.random()*0.18), dur:2600}); }
+    fadeTo(sp.material, 0.95);
+  }
+  lifted=true;
+}
+function moodSky(){           // full galaxy view
+  fadeTo(bgPoints.material,0.85);
+  for(const w of FULL_TRACKED) fadeTo(fgSprites[w].material,0.95);
+  for(const s of midSprites) fadeTo(s.material,0.2);
+  for(const g of glowSprites) fadeTo(g.material,0);
+  for(const l of clusterLabels) fadeTo(l.material,0);
+  setArrows(arrowsA,0); setArrows(arrowsB,0); setArrows(arrowsC,0);
+  if(queenGlow){ fadeTo(queenGlow.material,0); fadeTo(kingGlow.material,0); }
+  camZT=CAMZ0; homing=false;
+}
+function setArrows(arr,t){ for(const a of arr){ fadeTo(a.line.material,t); fadeTo(a.cone.material,t); } }
+function moodDirections(famSet, arrOn, arrFaint){
+  fadeTo(bgPoints.material,0.07);
+  for(const s of midSprites) fadeTo(s.material,0.02);
+  for(const w of FULL_TRACKED){
+    const focus=famSet.has(w);
+    fadeTo(fgSprites[w].material, focus?0.95:(arrFaint&&SET_A.has(w)?0.4:0.06));
+  }
+  setArrows(arrowsA, arrOn===arrowsA?0.95:(arrFaint?0.3:0));
+  setArrows(arrowsB, arrOn===arrowsB?0.95:0);
+  setArrows(arrowsC, arrOn===arrowsC?0.95:0);
+  for(const g of glowSprites) fadeTo(g.material,0);
+  for(const l of clusterLabels) fadeTo(l.material,0);
+  if(queenGlow){ fadeTo(queenGlow.material,0); fadeTo(kingGlow.material,0); }
+  camZT=86; homing=false;
+}
+
+/* beat 6 — the lift + scale, staged caption lines */
+onEnter[6]=()=>{
+  initThree(); clearTimers();
+  const lines=document.querySelectorAll("#beat6 .sline");
+  lines.forEach(l=>l.classList.remove("show"));
+  document.getElementById("prompt").classList.remove("show");
+  if(lifted){ moodSky(); lines.forEach(l=>l.classList.add("show")); return; }
+  const dl = reduceMotion ? [100,300,500,700] : [300,2400,4600,7400];
+  beatTimers=[...lines].map((l,i)=>setTimeout(()=>l.classList.add("show"), dl[i]));
+  beatTimers.push(setTimeout(()=>{ doLift(false); }, reduceMotion?100:500));
+  beatTimers.push(setTimeout(()=>{                 // the sky arrives with the numbers
+    fadeTo(bgPoints.material,0.85);
+    for(const s of midSprites) fadeTo(s.material,0.2);
+  }, reduceMotion?200:4600));
+  camZT=CAMZ0; homing=false;
+};
+onExit[6]=clearTimers;
+
+function ensureLifted(){ if(!lifted){ initThree(); doLift(true);
+  fadeTo(bgPoints.material,0.85); for(const s of midSprites) fadeTo(s.material,0.2); } }
+
+onEnter[7]=()=>{ ensureLifted(); moodDirections(SET_A, arrowsA, false); };
+onEnter[8]=()=>{ ensureLifted(); moodDirections(SET_B, arrowsB, false); };
+onEnter[9]=()=>{ ensureLifted(); moodDirections(SET_C, arrowsC, true); };
+
+onEnter[10]=()=>{
+  ensureLifted(); clearTimers();
+  fadeTo(bgPoints.material,0.4);
+  for(const w of FULL_TRACKED) fadeTo(fgSprites[w].material,0.85);
+  for(const s of midSprites) fadeTo(s.material,0.05);
+  setArrows(arrowsA,0); setArrows(arrowsB,0); setArrows(arrowsC,0);
+  for(const g of glowSprites) fadeTo(g.material,0.55);
+  fadeTo(queenGlow.material,0); fadeTo(kingGlow.material,0);
+  camZT=120; homing=false;
+  beatTimers=[setTimeout(()=>{ for(const l of clusterLabels) fadeTo(l.material,0.9); },
+    reduceMotion?300:3000)];
+};
+onExit[10]=clearTimers;
+
+onEnter[11]=()=>{
+  ensureLifted(); clearTimers();
+  fadeTo(bgPoints.material,0.1);
+  for(const s of midSprites) fadeTo(s.material,0.015);
+  setArrows(arrowsA,0); setArrows(arrowsB,0); setArrows(arrowsC,0);
+  for(const g of glowSprites) fadeTo(g.material,0);
+  for(const l of clusterLabels) fadeTo(l.material,0);
+  const royal=new Set(CLUSTERS[0].members);
+  for(const w of FULL_TRACKED)
+    fadeTo(fgSprites[w].material, w==="queen"?1 : royal.has(w)?0.65 : 0.06);
+  /* home the camera on the royal court */
+  const q=T.queen.clone().add(T.king).multiplyScalar(0.5);
+  const r=Math.hypot(q.x,q.z);
+  homeY=Math.atan2(-q.x,q.z); homeX=Math.max(-0.6,Math.min(0.6,Math.atan2(q.y,r)));
+  homing=true; camZT=Math.max(58, q.length()+44);
+  const blank=document.getElementById("blank");
+  blank.classList.remove("filled");
+  document.getElementById("prompt").classList.add("show");
+  beatTimers=[ setTimeout(()=>{
+      blank.classList.add("filled");
+      fadeTo(queenGlow.material,0.8); fadeTo(kingGlow.material,0.22);
+    }, reduceMotion?500:3200) ];
+};
+onExit[11]=()=>{ clearTimers(); homing=false;
+  document.getElementById("prompt").classList.remove("show");
+  if(fgSprites.queen&&fgSprites.queen.userData.bw){
+    const q=fgSprites.queen; q.scale.set(q.userData.bw,q.userData.bh,1); } };
+
+/* warm the GPU early */
+setTimeout(()=>{ try{ initThree(); }catch(e){ console.error(e); } }, 1400);
+</script>
+</body>
+</html>
